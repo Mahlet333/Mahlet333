@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attention Detection</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.1.2/socket.io.js"></script>
+</head>
+<body>
+    <h1>Attention Detection</h1>
+    <div style="display: flex;">
+        <div style="flex: 1;">
+            <canvas id="attentionChart" width="400" height="100"></canvas>
+        </div>
+        <div style="flex: 2;">
+            <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="video_feed" width="640" height="480">
+        </div>
+    </div>
+    <button id="speechButton">Start Speech Recognition</button> <!-- Button for activating speech recognition -->
+
+    <script>
+        var ctx = document.getElementById('attentionChart').getContext('2d');
+        var attentionChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Attention Level',
+                    data: [],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true,
+                            max: 1
+                        }
+                    }]
+                }
+            }
+        });
+
+        var socket = io();
+        socket.on('attention_update', function(data) {
+            var time = new Date().toLocaleTimeString();
+            attentionChart.data.labels.push(time);
+            var level = data.level === 'Fully attentive' ? 1 : (data.level === 'Partially attentive' ? 0.5 : 0);
+            attentionChart.data.datasets[0].data.push(level);
+            attentionChart.update();
+        });
+
+        // Function to handle speech recognition
+        var recognition = new webkitSpeechRecognition();
+        recognition.continuous = true;
+        recognition.lang = 'en-US';
+        recognition.interimResults = true;
+        recognition.onresult = function(event) {
+            var result = event.results[event.results.length - 1][0].transcript.toLowerCase();
+            if (result.includes('attention')) {
+                // Emit attention level via WebSocket when the word "attention" is detected
+                socket.emit('attention_update', {'level': 'Fully attentive'});
+            }
+        };
+
+        // Start speech recognition when the button is clicked
+        document.getElementById('speechButton').addEventListener('click', function() {
+            recognition.start();
+        });
+    </script>
+</body>
+</html>
